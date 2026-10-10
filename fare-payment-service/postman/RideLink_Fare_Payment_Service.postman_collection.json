@@ -1,0 +1,571 @@
+{
+  "info": {
+    "_postman_id": "ridelink-fare-payment-service-collection",
+    "name": "RideLink - Fare & Payment Service (Member 4)",
+    "description": "Postman API Collection for Member 4's Fare & Payment Service in RideLink (IT3130).\nIncludes Fare Estimation, Final Fare Calculation, Simulated Payments, and Receipt Retrieval.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00. Auth & Dev Helpers",
+      "item": [
+        {
+          "name": "01. Generate PASSENGER JWT Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.environment.set(\"jwtToken\", jsonData.token);",
+                  "    console.log(\"Saved PASSENGER JWT token to environment.\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/dev-token?role=PASSENGER&userId=pass-test-001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "dev-token"],
+              "query": [
+                {"key": "role", "value": "PASSENGER"},
+                {"key": "userId", "value": "pass-test-001"}
+              ]
+            },
+            "description": "Generates a signed JWT for local testing without needing the Account Service running."
+          }
+        },
+        {
+          "name": "02. Generate DRIVER JWT Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/dev-token?role=DRIVER&userId=driver-test-001",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "dev-token"],
+              "query": [
+                {"key": "role", "value": "DRIVER"},
+                {"key": "userId", "value": "driver-test-001"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01. Fare Estimation",
+      "item": [
+        {
+          "name": "01. Estimate Fare - With Distance (Happy Path)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Has estimated fare and formula breakdown\", function () {",
+                  "    pm.expect(json.estimatedFare).to.be.above(0);",
+                  "    pm.expect(json.formula).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"pickupLocation\": \"Colombo Fort Railway Station\",\n  \"destinationLocation\": \"Galle Face Green\",\n  \"distanceKm\": 5.2,\n  \"vehicleType\": \"CAR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/estimate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "estimate"]
+            }
+          }
+        },
+        {
+          "name": "02. Estimate Fare - With GPS Coordinates (Haversine)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"pickupLatitude\": 6.9344,\n  \"pickupLongitude\": 79.8525,\n  \"destinationLatitude\": 6.9271,\n  \"destinationLongitude\": 79.8436,\n  \"vehicleType\": \"CAR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/estimate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "estimate"]
+            }
+          }
+        },
+        {
+          "name": "03. Estimate Fare - Negative Distance (Negative: 400 Bad Request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"distanceKm\": -5.0,\n  \"vehicleType\": \"CAR\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/estimate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "estimate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Final Fare Calculation",
+      "item": [
+        {
+          "name": "01. Calculate Final Fare - Completed Ride (201 Created)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json.id) {",
+                  "    pm.environment.set(\"fareId\", json.id);",
+                  "    console.log(\"Saved fareId: \" + json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"passengerId\": \"{{passengerId}}\",\n  \"driverUserId\": \"driver-test-001\",\n  \"vehicleType\": \"CAR\",\n  \"distanceKm\": 8.5,\n  \"durationMinutes\": 20.0,\n  \"pickupLocation\": \"Colombo Fort Station\",\n  \"destinationLocation\": \"Mount Lavinia Beach\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/final",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "final"]
+            }
+          }
+        },
+        {
+          "name": "02. Calculate Final Fare - Idempotent Retry (Returns existing)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"distanceKm\": 8.5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/final",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "final"]
+            }
+          }
+        },
+        {
+          "name": "03. Calculate Final Fare - Missing Ride ID (Negative: 400 Bad Request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"\",\n  \"distanceKm\": 10.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/final",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "final"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Fare Retrieval",
+      "item": [
+        {
+          "name": "01. Get Fare by ID (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/{{fareId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "{{fareId}}"]
+            }
+          }
+        },
+        {
+          "name": "02. Get Fare by Ride ID (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/ride/{{rideId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "ride", "{{rideId}}"]
+            }
+          }
+        },
+        {
+          "name": "03. Get Fare by Non-existent ID (Negative: 404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/fares/non-existent-id-999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "fares", "non-existent-id-999"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Payment Processing",
+      "item": [
+        {
+          "name": "01. Process Payment - Success (CARD_SIMULATED) (201 Created)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json.paymentId) {",
+                  "    pm.environment.set(\"paymentId\", json.paymentId);",
+                  "    console.log(\"Saved paymentId: \" + json.paymentId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"passengerId\": \"{{passengerId}}\",\n  \"amount\": 1050.00,\n  \"paymentMethod\": \"CARD_SIMULATED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments"]
+            }
+          }
+        },
+        {
+          "name": "02. Process Payment - Prevent Duplicate on Same Ride (Negative: 409 Conflict)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"{{rideId}}\",\n  \"amount\": 1050.00,\n  \"paymentMethod\": \"CARD_SIMULATED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments"]
+            }
+          }
+        },
+        {
+          "name": "03. Process Payment - Simulated Failure (Negative: 402 Payment Required)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 402 Payment Required\", function () {",
+                  "    pm.response.to.have.status(402);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"ride-failure-demo-202\",\n  \"passengerId\": \"{{passengerId}}\",\n  \"amount\": 800.00,\n  \"paymentMethod\": \"CARD_SIMULATED\",\n  \"simulateFailure\": true,\n  \"failureReason\": \"INSUFFICIENT_FUNDS\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments"]
+            }
+          }
+        },
+        {
+          "name": "04. Process Payment - Invalid Negative Amount (Negative: 400 Bad Request)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rideId\": \"ride-new-303\",\n  \"amount\": -250.00,\n  \"paymentMethod\": \"CASH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Payment Retrieval",
+      "item": [
+        {
+          "name": "01. Get Payment by ID (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/{{paymentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "{{paymentId}}"]
+            }
+          }
+        },
+        {
+          "name": "02. Get Payment by Ride ID (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/ride/{{rideId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "ride", "{{rideId}}"]
+            }
+          }
+        },
+        {
+          "name": "03. Get Payment by Non-existent ID (Negative: 404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/PAY-NONEXISTENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "PAY-NONEXISTENT"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Receipt Generation & Retrieval",
+      "item": [
+        {
+          "name": "01. Get Receipt by Payment ID - Successful Payment (200 OK)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "pm.test(\"Receipt contains required receipt details\", function () {",
+                  "    pm.expect(json.receiptId).to.be.a('string');",
+                  "    pm.expect(json.paymentStatus).to.eql('SUCCESS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/{{paymentId}}/receipt",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "payments", "{{paymentId}}", "receipt"]
+            }
+          }
+        },
+        {
+          "name": "02. Get Receipt by Ride ID (200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{jwtToken}}"}
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/receipts/ride/{{rideId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "receipts", "ride", "{{rideId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
