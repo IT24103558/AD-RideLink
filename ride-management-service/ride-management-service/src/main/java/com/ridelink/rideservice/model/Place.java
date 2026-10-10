@@ -14,5 +14,4 @@ public class Place {
     private String address;
     private double latitude;
     private double longitude; 
-    
 }

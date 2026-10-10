@@ -16,6 +16,9 @@ public enum RideStatus {
     COMPLETED,
     CANCELLED;
 
+
+
+    
     /** Rides that still occupy the passenger. */
     public static final Set<RideStatus> ACTIVE = EnumSet.of(REQUESTED, ASSIGNED, ACCEPTED, IN_PROGRESS);
     /** Rides that occupy a driver. */
