@@ -13,5 +13,6 @@ import lombok.Setter;
 public class Place {
     private String address;
     private double latitude;
-    private double longitude;
+    private double longitude; 
+    
 }
